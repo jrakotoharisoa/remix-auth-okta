@@ -2,6 +2,19 @@
 
 The Okta strategy is used to authenticate users against an okta account. It extends the OAuth2Strategy.
 
+## Supported runtimes
+
+| Runtime    | Has Support |
+| ---------- | ----------- |
+| Node.js    | ✅          |
+| Cloudflare | ✅          |
+
+<!-- If it doesn't support one runtime, explain here why -->
+
+## How to use
+
+<!-- Explain how to use the strategy, here you should tell what options it expects from the developer when instantiating the strategy -->
+
 
 ---
 ## How to use it
