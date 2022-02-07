@@ -1,11 +1,9 @@
-# Remix Auth - Strategy Template
+# OktaStrategy
 
-> A template for creating a new Remix Auth strategy.
+The Okta strategy is used to authenticate users against an okta account. It extends the OAuth2Strategy.
 
-If you want to create a new strategy for Remix Auth, you could use this as a template for your repository.
 
-The repo installs the latest version of Remix Auth and do the setup for you to have tests, linting and typechecking.
-
+---
 ## How to use it
 
 1. In the `package.json` change `name` to your strategy name, also add a description and ideally an author, repository and homepage keys.
