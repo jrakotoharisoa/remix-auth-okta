@@ -1,5 +1,5 @@
 {
-  "name": "remix-auth-strategy-template",
+  "name": "remix-auth-okta",
   "version": "0.0.0",
   "main": "./build/index.js",
   "types": "./build/index.d.ts",
@@ -15,7 +15,8 @@
     "remix-auth",
     "auth",
     "authentication",
-    "strategy"
+    "strategy",
+    "okta"
   ],
   "license": "MIT",
   "files": [
@@ -52,6 +53,7 @@
     "typescript": "^4.3.5"
   },
   "dependencies": {
-    "remix-auth": "^3.0.0"
+    "remix-auth": "^3.0.0",
+    "remix-auth-oauth2": "^1.2.0"
   }
 }
