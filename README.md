@@ -13,47 +13,77 @@ The Okta strategy is used to authenticate users against an okta account. It exte
 
 ## How to use
 
-<!-- Explain how to use the strategy, here you should tell what options it expects from the developer when instantiating the strategy -->
+### Create an Okta Web app
+
+Follow the steps on [the Okta documentation](https://developer.okta.com/docs/guides/sign-into-web-app/nodeexpress/main/#understand-the-callback-route) to create Okta web app and get client ID, client secret and issuer
+
+### Create the strategy instance
+
+```typescript
+// app/utils/auth.server.ts
+import { Authenticator } from "remix-auth";
+import { OktaStrategy } from "remix-auth-okta";
+
+// Create an instance of the authenticator, pass a generic with what your
+// strategies will return and will be stored in the session
+export const authenticator = new Authenticator<User>(sessionStorage);
+
+let oktaStrategy = new OktaStrategy(
+  {
+    // example of issuer: https://dev-1234.okta.com/oauth2/default
+    issuer: "YOUR_OKTA_ISSUER", 
+    clientID: "YOUR_OKTA_CLIENT_ID",
+    clientSecret: "YOUR_OKTA_CLIENT_SECRET",
+    callbackURL: "https://your-app-domain.com/auth/okta/callback",
+  },
+  async ({ accessToken, refreshToken, extraParams, profile }) => {
+    // Get the user data from your DB or API using the tokens and profile
+    return User.findOrCreate({ email: profile.email });
+  }
+);
+
+authenticator.use(oktaStrategy);
+```
+
+### Setup your routes
+
+```typescript
+// app/routes/login.tsx
+export default function Login() {
+  return (
+    <Form action="/auth/okta" method="post">
+      <button>Login with Okta</button>
+    </Form>
+  );
+}
+```
 
 
----
-## How to use it
+```typescript
+// app/routes/auth/okta.tsx
+import type { ActionFunction, LoaderFunction } from "remix";
 
-1. In the `package.json` change `name` to your strategy name, also add a description and ideally an author, repository and homepage keys.
-2. In `src/index.ts` change the `MyStrategy` for the strategy name you want to use.
-3. Implement the strategy flow inside the `authenticate` method. Use `this.success` and `this.failure` to correctly send finish the flow.
-4. In `tests/index.test.ts` change the tests to use your strategy and test it. Inside the tests you have access to `jest-fetch-mock` to mock any fetch you may need to do.
-5. Once you are ready, set the secrets on Github
-   - `NPM_TOKEN`: The token for the npm registry
-   - `GIT_USER_NAME`: The you want the bump workflow to use in the commit.
-   - `GIT_USER_EMAIL`: The email you want the bump workflow to use in the commit.
+import { authenticator } from "~/utils/auth.server";
 
-## Scripts
+export let loader: LoaderFunction = () => redirect("/login");
 
-- `build`: Build the project for production using the TypeScript compiler (strips the types).
-- `typecheck`: Check the project for type errors, this also happens in build but it's useful to do in development.
-- `lint`: Runs ESLint againt the source codebase to ensure it pass the linting rules.
-- `test`: Runs all the test using Jest.
+export let action: ActionFunction = ({ request }) => {
+  return authenticator.authenticate("okta", request);
+};
 
-## Documentations
+```
 
-To facilitate creating a documentation for your strategy, you can use the following Markdown
+```typescript
+// app/routes/auth/okta/callback.tsx
+import type { ActionFunction, LoaderFunction } from "remix";
 
-```markdown
-# Strategy Name
+import { authenticator } from "~/utils/auth.server";
 
-<!-- Description -->
+export let loader: LoaderFunction = ({ request }) => {
+  return authenticator.authenticate("okta", request, {
+    successRedirect: "/private",
+    failureRedirect: "/login",
+  });
+};
 
-## Supported runtimes
-
-| Runtime    | Has Support |
-| ---------- | ----------- |
-| Node.js    | ✅          |
-| Cloudflare | ✅          |
-
-<!-- If it doesn't support one runtime, explain here why -->
-
-## How to use
-
-<!-- Explain how to use the strategy, here you should tell what options it expects from the developer when instantiating the strategy -->
 ```
