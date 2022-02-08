@@ -67,7 +67,7 @@ export class OktaStrategy<User> extends OAuth2Strategy<
     }: OktaStrategyOptions,
     verify: StrategyVerifyCallback<
       User,
-      OAuth2StrategyVerifyParams<OAuth2Profile, OktaExtraParams>
+      OAuth2StrategyVerifyParams<OktaProfile, OktaExtraParams>
     >
   ) {
     super(
