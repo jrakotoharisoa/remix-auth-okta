@@ -1,4 +1,4 @@
-import { SessionStorage } from "@remix-run/server-runtime";
+import { json, SessionStorage } from "@remix-run/server-runtime";
 import { AuthenticateOptions, StrategyVerifyCallback } from "remix-auth";
 import {
   OAuth2Profile,
@@ -42,7 +42,7 @@ export type OktaStrategyOptions = Omit<
   scope?: string;
   issuer: string;
 } & (
-    | { flow: "Password"; callbackURL: never }
+    | { flow: "Password"; callbackURL?: never }
     | { flow?: "Code"; callbackURL: string }
   );
 
@@ -85,7 +85,7 @@ export class OktaStrategy<User> extends OAuth2Strategy<
     this.flow = rest.flow ?? "Code";
   }
 
-  authenticate(
+  async authenticate(
     request: Request,
     sessionStorage: SessionStorage,
     options: AuthenticateOptions
@@ -94,7 +94,81 @@ export class OktaStrategy<User> extends OAuth2Strategy<
       return super.authenticate(request, sessionStorage, options);
     }
 
-    throw new Error("not implemented");
+    let session = await sessionStorage.getSession(
+      request.headers.get("Cookie")
+    );
+
+    let user: User | null = session.get(options.sessionKey) ?? null;
+
+    if (user) {
+      return this.success(user, request, sessionStorage, options);
+    }
+
+    const form = await request.formData();
+    const email = form.get("email");
+    const password = form.get("password");
+    if (!email || !password)
+      throw json(
+        { message: "Bad request, missing email and password." },
+        { status: 400 }
+      );
+
+    try {
+      let { accessToken, refreshToken, extraParams } =
+        await this.signinWithCredentials(email.toString(), password.toString());
+
+      let profile = await this.userProfile(accessToken);
+
+      user = await this.verify({
+        accessToken,
+        refreshToken,
+        profile,
+        extraParams,
+        context: options.context,
+      });
+    } catch (error) {
+      let message = (error as Error).message;
+      return await this.failure(message, request, sessionStorage, options);
+    }
+
+    return await this.success(user, request, sessionStorage, options);
+  }
+
+  private async signinWithCredentials(
+    email: string,
+    password: string
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    extraParams: OktaExtraParams;
+  }> {
+    let params = new URLSearchParams();
+    params.set("grant_type", "password");
+    params.set("scope", this.scope);
+    params.set("username", email.toString());
+    params.set("password", password.toString());
+    let response = await fetch(this.tokenURL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${Buffer.from(
+          `${this.clientID}:${this.clientSecret}`
+        ).toString("base64")}`,
+      },
+      body: params,
+    });
+
+    if (!response.ok) {
+      try {
+        let body = await response.text();
+
+        throw new Error(body);
+      } catch (error) {
+        throw error;
+      }
+    }
+
+    return await this.getAccessToken(response.clone() as unknown as Response);
   }
 
   protected authorizationParams() {
