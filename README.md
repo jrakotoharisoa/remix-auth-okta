@@ -1,3 +1,5 @@
+![CI](https://img.shields.io/github/workflow/status/jrakotoharisoa/remix-auth-okta/CI?style=flat-square)
+![npm](https://img.shields.io/npm/v/remix-auth-okta?style=flat-square)
 # OktaStrategy
 
 The Okta strategy is used to authenticate users against an okta account. It extends the OAuth2Strategy.
