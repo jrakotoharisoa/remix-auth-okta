@@ -1,7 +1,6 @@
 import { json, SessionStorage } from "@remix-run/server-runtime";
 import { AuthenticateOptions, StrategyVerifyCallback } from "remix-auth";
 import {
-  OAuth2Profile,
   OAuth2Strategy,
   OAuth2StrategyOptions,
   OAuth2StrategyVerifyParams,
@@ -37,13 +36,17 @@ type OktaUserInfo = {
 
 export type OktaStrategyOptions = Omit<
   OAuth2StrategyOptions,
-  "authorizationURL" | "tokenURL" | "callbackURL"
+  "authorizationURL" | "tokenURL"
 > & {
   scope?: string;
   issuer: string;
+  flow: "Password" | "Code";
 } & (
-    | { flow: "Password"; callbackURL?: never }
-    | { flow?: "Code"; callbackURL: string }
+    | {
+        flow: "Password";
+        oktaDomain: string;
+      }
+    | { flow: "Code"; oktaDomain?: never }
   );
 
 export type OktaExtraParams = Record<string, string | number>;
@@ -55,14 +58,17 @@ export class OktaStrategy<User> extends OAuth2Strategy<
 > {
   name = "okta";
   private userInfoURL: string;
+  private authenticationURL: string;
   private readonly scope: string;
   private readonly flow: "Code" | "Password";
+  private sessionToken = "";
   constructor(
     {
       issuer,
       scope = "openid profile email",
       clientID,
       clientSecret,
+      callbackURL,
       ...rest
     }: OktaStrategyOptions,
     verify: StrategyVerifyCallback<
@@ -76,13 +82,16 @@ export class OktaStrategy<User> extends OAuth2Strategy<
         tokenURL: `${issuer}/v1/token`,
         clientID,
         clientSecret,
-        callbackURL: rest.flow === "Password" ? "" : rest.callbackURL,
+        callbackURL,
       },
       verify
     );
     this.scope = scope;
     this.userInfoURL = `${issuer}/v1/userinfo`;
+    this.authenticationURL = `${issuer}/api/v1/authn`;
     this.flow = rest.flow ?? "Code";
+    this.authenticationURL =
+      rest.flow === "Code" ? "" : `${rest.oktaDomain}/api/v1/authn`;
   }
 
   async authenticate(
@@ -99,63 +108,40 @@ export class OktaStrategy<User> extends OAuth2Strategy<
     );
 
     let user: User | null = session.get(options.sessionKey) ?? null;
-
     if (user) {
-      return this.success(user, request, sessionStorage, options);
+      return this.success(user, request.clone(), sessionStorage, options);
     }
 
     const form = await request.formData();
     const email = form.get("email");
     const password = form.get("password");
-    if (!email || !password)
+    if (!email || !password) {
       throw json(
         { message: "Bad request, missing email and password." },
         { status: 400 }
       );
-
-    try {
-      let { accessToken, refreshToken, extraParams } =
-        await this.signinWithCredentials(email.toString(), password.toString());
-
-      let profile = await this.userProfile(accessToken);
-
-      user = await this.verify({
-        accessToken,
-        refreshToken,
-        profile,
-        extraParams,
-        context: options.context,
-      });
-    } catch (error) {
-      let message = (error as Error).message;
-      return await this.failure(message, request, sessionStorage, options);
     }
+    this.sessionToken = await this.getSessionTokenWith(
+      email.toString(),
+      password.toString()
+    );
 
-    return await this.success(user, request, sessionStorage, options);
+    return super.authenticate(request, sessionStorage, options);
   }
 
-  private async signinWithCredentials(
+  private async getSessionTokenWith(
     email: string,
     password: string
-  ): Promise<{
-    accessToken: string;
-    refreshToken: string;
-    extraParams: OktaExtraParams;
-  }> {
-    let params = new URLSearchParams();
-    params.set("grant_type", "password");
-    params.set("scope", this.scope);
-    params.set("username", email.toString());
-    params.set("password", password.toString());
-    let response = await fetch(this.tokenURL, {
+  ): Promise<string> {
+    let response = await fetch(this.authenticationURL, {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${Buffer.from(
-          `${this.clientID}:${this.clientSecret}`
-        ).toString("base64")}`,
+        "Content-Type": "application/json",
       },
-      body: params,
+      body: JSON.stringify({
+        username: email,
+        password,
+      }),
     });
 
     if (!response.ok) {
@@ -167,13 +153,14 @@ export class OktaStrategy<User> extends OAuth2Strategy<
         throw error;
       }
     }
-
-    return await this.getAccessToken(response.clone() as unknown as Response);
+    const data = await response.json();
+    return data.sessionToken;
   }
 
   protected authorizationParams() {
     return new URLSearchParams({
       scope: this.scope,
+      sessionToken: this.sessionToken,
     });
   }
 

@@ -158,9 +158,11 @@ describe(OktaStrategy, () => {
   describe("Password flow", () => {
     const options: OktaStrategyOptions = Object.freeze({
       flow: "Password",
-      issuer: "https://okta.issuer.come",
+      issuer: "https://okta.issuer.com",
+      oktaDomain: "https://okta.domain.com",
       clientID: "CLIENT_ID",
       clientSecret: "CLIENT_SECRET",
+      callbackURL: "https://mysite.com/okta/callback",
     });
 
     test("if user is already in the session redirect to `/`", async () => {
@@ -221,6 +223,7 @@ describe(OktaStrategy, () => {
         expect(error).toEqual(response);
       }
     });
+
     test("should throw if no password in form request", async () => {
       const strategy = new OktaStrategy(options, verify);
       const body = new FormData();
@@ -241,122 +244,56 @@ describe(OktaStrategy, () => {
       }
     });
 
-    test("should call /token to signin with email, password, scope, grant_type", async () => {
-      const strategy = new OktaStrategy(options, verify);
+    test("should redirect to authorization if request is not the callback", async () => {
+      let strategy = new OktaStrategy(options, verify);
 
-      const requestBody = new FormData();
-      requestBody.set("email", "test@example.com");
-      requestBody.set("password", "pwd");
-      const request = new Request("https://example.com/", {
-        body: requestBody,
+      const body = new FormData();
+      body.set("email", "test@example.com");
+      body.set("password", "password");
+      const request = new Request("http://example.com/login", {
+        body,
         method: "POST",
       });
-
       fetchMock.once(
         JSON.stringify({
-          access_token: "random-access-token",
-          refresh_token: "random-refresh-token",
-          id_token: "random.id.token",
+          sessionToken: "session-token",
         })
       );
-
-      fetchMock.once(
-        JSON.stringify({
-          sub: " string;",
-          name: " string;",
-          preferred_username: " string;",
-          nickname: " string;",
-          given_name: " string;",
-          middle_name: " string;",
-          family_name: " string;",
-          profile: " string;",
-          zoneinfo: " string;",
-          locale: " string;",
-          updated_at: " string;",
-          email: " string;",
-          email_verified: true,
-        })
-      );
-
-      const context = { test: "it works" };
-
-      await strategy.authenticate(request, sessionStorage, {
-        sessionKey: "user",
-        context,
-      });
-
-      const [url, mockRequest] = fetchMock.mock.calls[0];
-      const body = mockRequest?.body as URLSearchParams;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const headers = mockRequest?.headers as any;
-
-      expect(url).toBe(`${options.issuer}/v1/token`);
-
-      expect(mockRequest?.method as string).toBe("POST");
-      expect(headers["Content-Type"]).toBe("application/x-www-form-urlencoded");
-
-      expect(headers["Authorization"]).toContain("Basic");
-      expect(body.get("grant_type")).toBe("password");
-      expect(body.get("scope")).toBe("openid profile email");
-      expect(body.get("username")).toBe("test@example.com");
-      expect(body.get("password")).toBe("pwd");
-    });
-
-    test("should throw a response with user in session and redirect to /", async () => {
-      const user = { id: "123" };
-      verify.mockResolvedValueOnce(user);
-
-      const strategy = new OktaStrategy(options, verify);
-
-      const requestBody = new FormData();
-      requestBody.set("email", "test@example.com");
-      requestBody.set("password", "pwd");
-      const request = new Request("https://example.com/", {
-        body: requestBody,
-        method: "POST",
-      });
-
-      fetchMock.once(
-        JSON.stringify({
-          access_token: "random-access-token",
-          refresh_token: "random-refresh-token",
-          id_token: "random.id.token",
-        })
-      );
-
-      fetchMock.once(
-        JSON.stringify({
-          sub: " string;",
-          name: " string;",
-          preferred_username: " string;",
-          nickname: " string;",
-          given_name: " string;",
-          middle_name: " string;",
-          family_name: " string;",
-          profile: " string;",
-          zoneinfo: " string;",
-          locale: " string;",
-          updated_at: " string;",
-          email: " string;",
-          email_verified: true,
-        })
-      );
-
       try {
         await strategy.authenticate(request, sessionStorage, {
           sessionKey: "user",
-          successRedirect: "/",
         });
-        fail();
       } catch (error) {
         if (!(error instanceof Response)) throw error;
 
-        const session = await sessionStorage.getSession(
+        let redirect = new URL(error.headers.get("Location") as string);
+
+        let session = await sessionStorage.getSession(
           error.headers.get("Set-Cookie")
         );
 
-        expect(error.headers.get("Location")).toBe("/");
-        expect(session.get("user")).toEqual(user);
+        expect(fetchMock.mock.calls[0][0]).toBe(
+          `${options.oktaDomain}/api/v1/authn`
+        );
+        const body = JSON.parse(
+          (fetchMock.mock.calls[0][1]?.body as string) || ""
+        );
+        expect(body.username).toBe("test@example.com");
+        expect(body.password).toBe("password");
+        expect(error.status).toBe(302);
+
+        expect(redirect.pathname).toBe("/v1/authorize");
+        expect(redirect.searchParams.get("response_type")).toBe("code");
+        expect(redirect.searchParams.get("client_id")).toBe(options.clientID);
+        expect(redirect.searchParams.get("sessionToken")).toBe("session-token");
+        expect(redirect.searchParams.get("redirect_uri")).toBe(
+          options.callbackURL
+        );
+        expect(redirect.searchParams.has("state")).toBeTruthy();
+
+        expect(session.get("oauth2:state")).toBe(
+          redirect.searchParams.get("state")
+        );
       }
     });
   });
