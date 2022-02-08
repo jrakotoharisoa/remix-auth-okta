@@ -105,14 +105,16 @@ export const authenticator = new Authenticator<User>(sessionStorage);
 
 let oktaStrategy = new OktaStrategy(
   {
-    flow: "Password",
     // example of issuer: https://dev-1234.okta.com/oauth2/default
     issuer: "YOUR_OKTA_ISSUER", 
-    // example of okta domain: https://dev-1234.okta.com
-    oktaDomain: "YOUR_OKTA_DOMAIN"
     clientID: "YOUR_OKTA_CLIENT_ID",
     clientSecret: "YOUR_OKTA_CLIENT_SECRET",
     callbackURL: "https://your-app-domain.com/auth/okta/callback",
+
+    // Add this to options for custom login form
+    withCustomLoginForm: true,
+    // example of okta domain: https://dev-1234.okta.com
+    oktaDomain: "YOUR_OKTA_DOMAIN"
   },
   async ({ accessToken, refreshToken, extraParams, profile }) => {
     // Get the user data from your DB or API using the tokens and profile

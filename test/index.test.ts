@@ -157,7 +157,7 @@ describe(OktaStrategy, () => {
 
   describe("Password flow", () => {
     const options: OktaStrategyOptions = Object.freeze({
-      flow: "Password",
+      withCustomLoginForm: true,
       issuer: "https://okta.issuer.com",
       oktaDomain: "https://okta.domain.com",
       clientID: "CLIENT_ID",

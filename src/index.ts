@@ -40,13 +40,12 @@ export type OktaStrategyOptions = Omit<
 > & {
   scope?: string;
   issuer: string;
-  flow: "Password" | "Code";
 } & (
     | {
-        flow: "Password";
+        withCustomLoginForm: true;
         oktaDomain: string;
       }
-    | { flow: "Code"; oktaDomain?: never }
+    | { withCustomLoginForm?: false; oktaDomain?: never }
   );
 
 export type OktaExtraParams = Record<string, string | number>;
@@ -60,7 +59,7 @@ export class OktaStrategy<User> extends OAuth2Strategy<
   private userInfoURL: string;
   private authenticationURL: string;
   private readonly scope: string;
-  private readonly flow: "Code" | "Password";
+  private readonly withCustomLoginForm: boolean;
   private sessionToken = "";
   constructor(
     {
@@ -89,9 +88,10 @@ export class OktaStrategy<User> extends OAuth2Strategy<
     this.scope = scope;
     this.userInfoURL = `${issuer}/v1/userinfo`;
     this.authenticationURL = `${issuer}/api/v1/authn`;
-    this.flow = rest.flow ?? "Code";
-    this.authenticationURL =
-      rest.flow === "Code" ? "" : `${rest.oktaDomain}/api/v1/authn`;
+    this.withCustomLoginForm = !!rest.withCustomLoginForm;
+    this.authenticationURL = rest.withCustomLoginForm
+      ? `${rest.oktaDomain}/api/v1/authn`
+      : "";
   }
 
   async authenticate(
@@ -99,7 +99,7 @@ export class OktaStrategy<User> extends OAuth2Strategy<
     sessionStorage: SessionStorage,
     options: AuthenticateOptions
   ): Promise<User> {
-    if (this.flow === "Code") {
+    if (!this.withCustomLoginForm) {
       return super.authenticate(request, sessionStorage, options);
     }
 
