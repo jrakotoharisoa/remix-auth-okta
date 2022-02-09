@@ -112,21 +112,39 @@ export class OktaStrategy<User> extends OAuth2Strategy<
       return this.success(user, request.clone(), sessionStorage, options);
     }
 
-    const form = await request.formData();
-    const email = form.get("email");
-    const password = form.get("password");
-    if (!email || !password) {
-      throw json(
-        { message: "Bad request, missing email and password." },
-        { status: 400 }
+    const url = new URL(request.url);
+    const callbackUrl = this.getCallbackURLFrom(url);
+    if (url.pathname !== callbackUrl.pathname) {
+      const form = await request.formData();
+      const email = form.get("email");
+      const password = form.get("password");
+
+      if (!email || !password) {
+        throw json(
+          { message: "Bad request, missing email and password." },
+          { status: 400 }
+        );
+      }
+      this.sessionToken = await this.getSessionTokenWith(
+        email.toString(),
+        password.toString()
       );
     }
-    this.sessionToken = await this.getSessionTokenWith(
-      email.toString(),
-      password.toString()
-    );
 
     return super.authenticate(request, sessionStorage, options);
+  }
+
+  private getCallbackURLFrom(url: URL) {
+    if (
+      this.callbackURL.startsWith("http:") ||
+      this.callbackURL.startsWith("https:")
+    ) {
+      return new URL(this.callbackURL);
+    }
+    if (this.callbackURL.startsWith("/")) {
+      return new URL(this.callbackURL, url);
+    }
+    return new URL(`${url.protocol}//${this.callbackURL}`);
   }
 
   private async getSessionTokenWith(

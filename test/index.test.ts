@@ -207,7 +207,10 @@ describe(OktaStrategy, () => {
       const strategy = new OktaStrategy(options, verify);
       const body = new FormData();
       body.set("password", "test@example.com");
-      const request = new Request("", { body, method: "POST" });
+      const request = new Request("https://example.com/login", {
+        body,
+        method: "POST",
+      });
       const response = json(
         { message: "Bad request, missing email and password." },
         { status: 400 }
@@ -228,7 +231,10 @@ describe(OktaStrategy, () => {
       const strategy = new OktaStrategy(options, verify);
       const body = new FormData();
       body.set("email", "test@example.com");
-      const request = new Request("", { body, method: "POST" });
+      const request = new Request("https://example.com/login", {
+        body,
+        method: "POST",
+      });
       const response = json(
         { message: "Bad request, missing email and password." },
         { status: 400 }
@@ -295,6 +301,54 @@ describe(OktaStrategy, () => {
           redirect.searchParams.get("state")
         );
       }
+    });
+
+    test("should return the result of verify", async () => {
+      let user = { id: "123" };
+      verify.mockResolvedValueOnce(user);
+      let strategy = new OktaStrategy(options, verify);
+
+      let session = await sessionStorage.getSession();
+      session.set("oauth2:state", "random-state");
+
+      let request = new Request(
+        `${options.callbackURL}?state=random-state&code=random-code&sessionToken=session-token`,
+        {
+          headers: { cookie: await sessionStorage.commitSession(session) },
+        }
+      );
+
+      fetchMock.once(
+        JSON.stringify({
+          access_token: "random-access-token",
+          refresh_token: "random-refresh-token",
+          id_token: "random.id.token",
+        })
+      );
+
+      fetchMock.once(
+        JSON.stringify({
+          sub: "id",
+          name: "Name",
+          preferred_username: "Preferred username",
+          nickname: "Nickname",
+          given_name: "Given name",
+          middle_name: "Middle name",
+          family_name: "Family name",
+          profile: "Profile",
+          zoneinfo: "fr",
+          locale: "fr",
+          updated_at: "date",
+          email: "example@email.com",
+          email_verified: true,
+        })
+      );
+
+      let response = await strategy.authenticate(request, sessionStorage, {
+        sessionKey: "user",
+      });
+
+      expect(response).toEqual(user);
     });
   });
 });
