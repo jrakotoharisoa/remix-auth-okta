@@ -1,4 +1,4 @@
-![CI](https://img.shields.io/github/workflow/status/jrakotoharisoa/remix-auth-okta/CI?style=flat-square)
+![CI](https://img.shields.io/github/actions/workflow/status/jrakotoharisoa/remix-auth-okta/main.yml?branch=main&style=flat-square)
 ![npm](https://img.shields.io/npm/v/remix-auth-okta?style=flat-square)
 # OktaStrategy
 
