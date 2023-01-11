@@ -1,4 +1,4 @@
-import { json, SessionStorage } from "@remix-run/server-runtime";
+import type { SessionStorage } from "@remix-run/server-runtime";
 import { AuthenticateOptions, StrategyVerifyCallback } from "remix-auth";
 import {
   OAuth2Strategy,
@@ -120,9 +120,16 @@ export class OktaStrategy<User> extends OAuth2Strategy<
       const password = form.get("password");
 
       if (!email || !password) {
-        throw json(
-          { message: "Bad request, missing email and password." },
-          { status: 400 }
+        throw new Response(
+          JSON.stringify({
+            message: "Bad request, missing email and password.",
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json; charset=utf-8",
+            },
+            status: 400,
+          }
         );
       }
       this.sessionToken = await this.getSessionTokenWith(

@@ -1,5 +1,6 @@
-import { createCookieSessionStorage, json } from "@remix-run/server-runtime";
+import { createCookieSessionStorage, json } from "@remix-run/node";
 import fetchMock, { enableFetchMocks } from "jest-fetch-mock";
+import { AuthenticateOptions } from "remix-auth";
 import { OAuth2StrategyVerifyParams } from "remix-auth-oauth2";
 import {
   OktaExtraParams,
@@ -9,6 +10,13 @@ import {
 } from "../src";
 
 enableFetchMocks();
+
+const BASE_OPTIONS: AuthenticateOptions = {
+  name: "form",
+  sessionKey: "user",
+  sessionErrorKey: "error",
+  sessionStrategyKey: "strategy",
+};
 
 describe(OktaStrategy, () => {
   const verify = jest.fn();
@@ -34,9 +42,7 @@ describe(OktaStrategy, () => {
       const request = new Request("https://mysite.com/okta/auth");
       const strategy = new OktaStrategy(options, verify);
       try {
-        await strategy.authenticate(request, sessionStorage, {
-          sessionKey: "user",
-        });
+        await strategy.authenticate(request, sessionStorage, BASE_OPTIONS);
       } catch (error) {
         if (!(error instanceof Response)) throw error;
         const location = error.headers.get("Location");
@@ -59,9 +65,7 @@ describe(OktaStrategy, () => {
       const request = new Request("https://mysite.com/okta/auth");
 
       try {
-        await strategy.authenticate(request, sessionStorage, {
-          sessionKey: "user",
-        });
+        await strategy.authenticate(request, sessionStorage, BASE_OPTIONS);
       } catch (error) {
         if (!(error instanceof Response)) throw error;
         const location = error.headers.get("Location");
@@ -116,7 +120,7 @@ describe(OktaStrategy, () => {
       const context = { test: "it works" };
 
       await strategy.authenticate(request, sessionStorage, {
-        sessionKey: "user",
+        ...BASE_OPTIONS,
         context,
       });
 
@@ -175,9 +179,11 @@ describe(OktaStrategy, () => {
         headers: { cookie: await sessionStorage.commitSession(session) },
       });
 
-      const user = await strategy.authenticate(request, sessionStorage, {
-        sessionKey: "user",
-      });
+      const user = await strategy.authenticate(
+        request,
+        sessionStorage,
+        BASE_OPTIONS
+      );
 
       expect(user).toEqual({ id: "123" });
     });
@@ -194,7 +200,7 @@ describe(OktaStrategy, () => {
 
       try {
         await strategy.authenticate(request, sessionStorage, {
-          sessionKey: "user",
+          ...BASE_OPTIONS,
           successRedirect: "/dashboard",
         });
       } catch (error) {
@@ -217,13 +223,12 @@ describe(OktaStrategy, () => {
       );
 
       try {
-        await strategy.authenticate(request, sessionStorage, {
-          sessionKey: "user",
-        });
+        await strategy.authenticate(request, sessionStorage, BASE_OPTIONS);
         fail("test fail");
       } catch (error) {
         if (!(error instanceof Response)) throw error;
-        expect(error).toEqual(response);
+        expect(error.status).toEqual(response.status);
+        expect(await error.json()).toEqual(await response.json());
       }
     });
 
@@ -241,12 +246,11 @@ describe(OktaStrategy, () => {
       );
 
       try {
-        await strategy.authenticate(request, sessionStorage, {
-          sessionKey: "user",
-        });
+        await strategy.authenticate(request, sessionStorage, BASE_OPTIONS);
       } catch (error) {
         if (!(error instanceof Response)) throw error;
-        expect(error).toEqual(response);
+        expect(error.status).toEqual(response.status);
+        expect(await error.json()).toEqual(await response.json());
       }
     });
 
@@ -266,9 +270,7 @@ describe(OktaStrategy, () => {
         })
       );
       try {
-        await strategy.authenticate(request, sessionStorage, {
-          sessionKey: "user",
-        });
+        await strategy.authenticate(request, sessionStorage, BASE_OPTIONS);
       } catch (error) {
         if (!(error instanceof Response)) throw error;
 
@@ -344,9 +346,11 @@ describe(OktaStrategy, () => {
         })
       );
 
-      let response = await strategy.authenticate(request, sessionStorage, {
-        sessionKey: "user",
-      });
+      let response = await strategy.authenticate(
+        request,
+        sessionStorage,
+        BASE_OPTIONS
+      );
 
       expect(response).toEqual(user);
     });
